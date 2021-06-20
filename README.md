@@ -42,3 +42,10 @@ Options:
   -w, --wait  Wait to get the result of submission.  [default: False]
   --help      Show this message and exit.
 ```
+
+### Example
+
+```bash
+export JOJ_SID=74cd5a48c680fc3616092a12d242aa3dac3780dd1f0ac709740fd5355ed8281c
+joj-submit https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/homework/5fb1f1379fedcc0006622a06/5fb1ee8b9fedcc00066229d9 ans.zip cc
+```
