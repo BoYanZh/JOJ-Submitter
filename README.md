@@ -12,6 +12,6 @@ source env/Scripts/activate
 ### Install
 
 ```bash
-pip3 install -e .
+pip install joj-submitter
 joj-submit --help
 ```
