@@ -58,5 +58,10 @@ setup(
         "Bug Reports": "https://github.com/BoYanZh/JOJ-Submitter/issues",
         "Source": "https://github.com/BoYanZh/JOJ-Submitter",
     },
-    install_requires=get_install_requires(),
+    install_requires=[
+        "beautifulsoup4>=4.9.3",
+        "pydantic>=1.8.1",
+        "requests>=2.25.1",
+        "typer[all]>=0.3.2",
+    ],
 )

@@ -2,16 +2,15 @@ import logging
 import os
 import time
 from enum import Enum
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
 import requests
 import typer
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, FilePath, HttpUrl, ValidationError
 from requests.models import Response
-from requests.sessions import Session
 
-__version__ = "0.0.0"
+__version__ = "0.0.1"
 
 app = typer.Typer(add_completion=False)
 
@@ -57,20 +56,20 @@ class JOJSubmitter:
         assert "JAccount Login" not in html, "Unauthorized SID"
 
     def upload_file(self, problem_url: str, file_path: str, lang: str) -> Response:
-        postUrl = f"{problem_url}/submit"
-        html = self.sess.get(postUrl).text
+        post_url = f"{problem_url}/submit"
+        html = self.sess.get(post_url).text
         soup = BeautifulSoup(html, features="html.parser")
-        resultSet = soup.select(
+        result_set = soup.select(
             "#panel > div.main > div > div.medium-9.columns > "
             + "div:nth-child(2) > div.section__body > form > "
             + "div:nth-child(3) > div > input[type=hidden]:nth-child(1)"
         )
-        assert len(resultSet), "Invalid problem"
-        csrfToken = resultSet[0].get("value")
+        assert len(result_set), "Invalid problem"
+        csrf_token = result_set[0].get("value")
         response = self.sess.post(
-            postUrl,
+            post_url,
             files={"code": open(file_path, "rb")},
-            data={"csrf_token": csrfToken, "lang": lang},
+            data={"csrf_token": csrf_token, "lang": lang},
         )
         return response
 
@@ -89,13 +88,13 @@ class JOJSubmitter:
                 time.sleep(1)
         if status == "Compile Error":
             return status, -1
-        resultSet = soup.findAll("td", class_="col--status typo")
+        result_set = soup.findAll("td", class_="col--status typo")
         return (
             status,
             sum(
                 [
                     "Accepted" == result.find_all("span")[1].get_text().strip()
-                    for result in resultSet
+                    for result in result_set
                 ]
             ),
         )
@@ -144,6 +143,12 @@ class Info(BaseModel):
     wait: bool
 
 
+def version_callback(value: bool) -> None:
+    if value:
+        typer.echo(__version__)
+        raise typer.Exit()
+
+
 @app.command()
 def main(
     problem_url: str,
@@ -154,6 +159,9 @@ def main(
     sid: str = typer.Argument("", envvar="JOJ_SID"),
     wait: bool = typer.Option(
         False, "-w", "--wait", help="Wait to get the result of submission."
+    ),
+    version: Optional[bool] = typer.Option(
+        None, "--version", callback=version_callback, help="Show version."
     ),
 ) -> None:
     try:
