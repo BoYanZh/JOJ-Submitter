@@ -1,5 +1,4 @@
 import logging
-import os
 import time
 from enum import Enum
 from typing import Dict, Optional, Tuple
@@ -7,10 +6,11 @@ from typing import Dict, Optional, Tuple
 import requests
 import typer
 from bs4 import BeautifulSoup
+from colorama import Fore, Style, init
 from pydantic import BaseModel, FilePath, HttpUrl, ValidationError
 from requests.models import Response
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 
 app = typer.Typer(add_completion=False)
 
@@ -56,16 +56,14 @@ class JOJSubmitter:
         assert "JAccount Login" not in html, "Unauthorized SID"
 
     def upload_file(self, problem_url: str, file_path: str, lang: str) -> Response:
-        post_url = f"{problem_url}/submit"
+        post_url = problem_url
+        if not post_url.endswith("/submit"):
+            post_url += "/submit"
         html = self.sess.get(post_url).text
         soup = BeautifulSoup(html, features="html.parser")
-        result_set = soup.select(
-            "#panel > div.main > div > div.medium-9.columns > "
-            + "div:nth-child(2) > div.section__body > form > "
-            + "div:nth-child(3) > div > input[type=hidden]:nth-child(1)"
-        )
-        assert len(result_set), "Invalid problem"
-        csrf_token = result_set[0].get("value")
+        csrf_token_node = soup.find("input", {"name": "csrf_token"})
+        assert csrf_token_node, "Invalid problem"
+        csrf_token = csrf_token_node.get("value")
         response = self.sess.post(
             post_url,
             files={"code": open(file_path, "rb")},
@@ -73,12 +71,14 @@ class JOJSubmitter:
         )
         return response
 
-    def get_status(self, url: str) -> Tuple[str, int]:
+    def get_status(self, url: str) -> Tuple[str, int, str, str, str, str]:
         while True:
             html = self.sess.get(url).text
             soup = BeautifulSoup(html, features="html.parser")
             status = (
-                soup.select("#status > div.section__header > h1 > span:nth-child(2)")[0]
+                soup.select_one(
+                    "#status > div.section__header > h1 > span:nth-child(2)"
+                )
                 .get_text()
                 .strip()
             )
@@ -86,28 +86,48 @@ class JOJSubmitter:
                 break
             else:
                 time.sleep(1)
-        if status == "Compile Error":
-            return status, -1
-        result_set = soup.findAll("td", class_="col--status typo")
+        result_set = soup.find_all("td", class_="col--status typo")
+        accepted_count = 0
+        for result in result_set:
+            accepted_count += (
+                "Accepted" == result.find_all("span")[1].get_text().strip()
+            )
+        summaries = [
+            item.get_text() for item in soup.select_one("#summary").find_all("dd")
+        ]
+        summaries[1] = summaries[1].replace("ms", " ms")
+        compiler_text = soup.select_one(".compiler-text").get_text().strip()
         return (
             status,
-            sum(
-                [
-                    "Accepted" == result.find_all("span")[1].get_text().strip()
-                    for result in result_set
-                ]
-            ),
+            accepted_count,
+            summaries[0],
+            summaries[1],
+            summaries[2],
+            compiler_text,
         )
 
-    def submit(self, problem_url: str, file_path: str, lang: str, wait: bool) -> None:
+    def submit(
+        self, problem_url: str, file_path: str, lang: str, no_wait: bool
+    ) -> None:
         response = self.upload_file(problem_url, file_path, lang)
         assert (
             response.status_code == 200
         ), f"Upload error with code {response.status_code}"
         self.logger.info(f"{file_path} upload succeed, record url {response.url}")
-        if wait:
-            res = self.get_status(response.url)
-            self.logger.info(f"upload result {res[0]}, {res[1]} cases accepted")
+        if no_wait:
+            return
+        res = self.get_status(response.url)
+        fore_color = Fore.RED if res[0] != "Accepted" else Fore.GREEN
+        self.logger.info(
+            f"status: {fore_color}{res[0]}{Style.RESET_ALL}, "
+            + f"accept number: {Fore.BLUE}{res[1]}{Style.RESET_ALL}, "
+            + f"score: {Fore.BLUE}{res[2]}{Style.RESET_ALL}, "
+            + f"total time: {Fore.BLUE}{res[3]}{Style.RESET_ALL}, "
+            + f"peak memory: {Fore.BLUE}{res[4]}{Style.RESET_ALL}"
+        )
+        if res[5]:
+            self.logger.info("compiler text:")
+            self.logger.info(res[5])
 
 
 lang_dict = {
@@ -135,12 +155,12 @@ lang_dict = {
 }
 
 
-class Info(BaseModel):
+class arguments(BaseModel):
     problem_url: HttpUrl
     compressed_file_path: FilePath
     lang: Language
     sid: str
-    wait: bool
+    no_wait: bool
 
 
 def version_callback(value: bool) -> None:
@@ -156,32 +176,33 @@ def main(
     lang: Language = typer.Argument(
         ..., help=" | ".join([f"{k}: {v}" for k, v in lang_dict.items()])
     ),
-    sid: str = typer.Argument("", envvar="JOJ_SID"),
-    wait: bool = typer.Option(
-        False, "-w", "--wait", help="Wait to get the result of submission."
+    sid: str = typer.Argument("<EMPTY>", envvar="JOJ_SID"),
+    no_wait: bool = typer.Option(
+        False, "-s", "--skip", help="Return immediately once uploaded."
     ),
     version: Optional[bool] = typer.Option(
         None, "--version", callback=version_callback, help="Show version."
     ),
 ) -> None:
     try:
-        Info(
+        arguments(
             problem_url=problem_url,  # type: ignore
             compressed_file_path=compressed_file_path,  # type: ignore
             lang=lang,
             sid=sid,
-            wait=wait,
+            no_wait=no_wait,
         )
-        assert os.path.exists(compressed_file_path), "File not exist"
+        assert sid and sid != "<EMPTY>", "Empty SID"
         worker = JOJSubmitter(sid)
-        worker.submit(problem_url, compressed_file_path, lang.value, wait)
+        worker.submit(problem_url, compressed_file_path, lang.value, no_wait)
     except ValidationError as e:
-        logging.error(e)
+        logging.error(f"Error: {e}")
         exit(1)
     except AssertionError as e:
-        logging.error(e.args[0])
+        logging.error(f"Error: {e.args[0]}")
         exit(1)
 
 
 if __name__ == "__main__":
+    init()
     app()

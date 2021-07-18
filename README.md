@@ -33,30 +33,47 @@ Arguments:
                                   | php: PHP | rs: Rust | hs: Haskell | js:
                                   JavaScript | go: Go | rb: Ruby  [required]
 
-  [SID]                           [env var: JOJ_SID;default: ]
+  [SID]                           [env var: JOJ_SID;default: <EMPTY>]
 
 Options:
-  -w, --wait  Wait to get the result of submission.  [default: False]
+  -s, --skip  Return immediately once uploaded.  [default: False]
+  --version   Show version.
   --help      Show this message and exit.
 ```
 
 ### Example
 
-You can first get your JOJ_SID with <https://github.com/BoYanZh/JI-Auth>.
+First get your JOJ_SID with <https://github.com/BoYanZh/JI-Auth> or via browser on your own.
+
+Replace `<YOUR_JOJ_SID>` in the following methods with your actual SID.
+
+#### Method 1 Call directly via CLI
+
+1. Mark `JOJ_SID` shell variable.
+2. Run `joj-submit` with arguments.
 
 ```bash
-$ export JOJ_SID=74cd5a48c680fc3616092a12d242aa3dac3780dd1f0ac709740fd5355ed8281c
-$ joj-submit https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/homework/5fb1f1379fedcc0006622a06/5fb1ee8b9fedcc00066229d9 ans.zip cc
-ans.zip upload succeed, record url https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/records/60e42b17597d580006c571d6
-```
-
-You can either visit the record url to check the result or use `-w` flag to wait for the result to be printed in the terminal.
-
-There will be one extra line to inform you the result if `joj-submit` is run with `-w`:
-
-```bash
-$ export JOJ_SID=74cd5a48c680fc3616092a12d242aa3dac3780dd1f0ac709740fd5355ed8281c
+$ export JOJ_SID=<YOUR_JOJ_SID>
 $ joj-submit -w https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/homework/5fb1f1379fedcc0006622a06/5fb1ee8b9fedcc00066229d9 ans.zip cc
 ans.zip upload succeed, record url https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/records/60e42b17597d580006c571d6
-upload result Wrong Answer, 8 cases accepted
+status: Accepted, accept number: 49, score: 980, total time: 6167 ms, peak memory: 33.684 MiB
 ```
+
+#### Method 2 Call from Makefile
+
+1. Add `export JOJ_SID=<YOUR_JOJ_SID>` to your `~/.bashrc` or `~/.zshrc`. Do not forget to restart the shell to load the variable.
+2. Edit and add this Makefile to your project <https://gist.github.com/BoYanZh/6ee60b76f0fc70389c9ac0988fd16885>.
+3. Run `make joj`.
+
+```bash
+$ make joj
+tar -cvzf p4-src.tar.gz main.cpp
+main.cpp
+joj-submit https://joj.sjtu.edu.cn/d/ve281_summer_2021_hongyi/homework/60ed8820597d590006d91e44/60ed869b597d590006d91dad p4-src.tar.gz cc -w
+p4-src.tar.gz upload succeed, record url https://joj.sjtu.edu.cn/d/ve281_summer_2021_hongyi/records/60f4451537f07210064b8c20
+status: Accepted, accept number: 49, score: 980, total time: 6167 ms, peak memory: 33.684 MiB
+```
+
+## Acknowledgements
+
+- [VG101-Grade-Helper](https://github.com/BoYanZh/VG101-Grade-Helper)
