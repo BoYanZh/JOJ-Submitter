@@ -37,6 +37,8 @@ Arguments:
 
 Options:
   -s, --skip  Return immediately once uploaded.  [default: False]
+  -a, --all   Show detail of all cases, even accepted.  [default: False]
+  -j, --json  Print the result in json format to stdout.  [default: False]
   --version   Show version.
   --help      Show this message and exit.
 ```

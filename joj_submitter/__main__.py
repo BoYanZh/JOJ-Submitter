@@ -291,10 +291,10 @@ def main(
         False, "-s", "--skip", help="Return immediately once uploaded."
     ),
     show_accepted: bool = typer.Option(
-        False, "-a", "--all", help="Show detail of accepted cases."
+        False, "-a", "--all", help="Show detail of all cases, even accepted."
     ),
     json_format: bool = typer.Option(
-        False, "-j", "--json", help="Print the result in json format."
+        False, "-j", "--json", help="Print the result in json format to stdout."
     ),
     version: Optional[bool] = typer.Option(
         None, "--version", callback=version_callback, help="Show version."
