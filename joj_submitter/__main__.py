@@ -183,7 +183,7 @@ class JOJSubmitter:
         )
 
     def submit(
-        self, problem_url: str, file_path: str, lang: str, no_wait: bool, show_accepted: bool, json_format: bool
+        self, problem_url: str, file_path: str, lang: str, no_wait: bool, show_accepted: bool, brief: bool, json_format: bool
     ) -> None:
         response = self.upload_file(problem_url, file_path, lang)
         assert (
@@ -227,18 +227,19 @@ class JOJSubmitter:
                         + f"time: {Fore.BLUE}{detail.time_cost}{Style.RESET_ALL}, "
                         + f"memory: {Fore.BLUE}{detail.memory_cost}{Style.RESET_ALL}"
                     )
-                    self.logger.info("Stderr:")
-                    if detail.stderr:
-                        self.logger.info(detail.stderr)
-                    self.logger.info("")
-                    self.logger.info("Your Answer:")
-                    if detail.out:
-                        self.logger.info(detail.out)
-                    self.logger.info("")
-                    self.logger.info("JOJ Answer:")
-                    if detail.ans:
-                        self.logger.info(detail.ans)
-                    self.logger.info("")
+                    if brief == False:
+                        self.logger.info("Stderr:")
+                        if detail.stderr:
+                            self.logger.info(detail.stderr)
+                        self.logger.info("")
+                        self.logger.info("Your Answer:")
+                        if detail.out:
+                            self.logger.info(detail.out)
+                        self.logger.info("")
+                        self.logger.info("JOJ Answer:")
+                        if detail.ans:
+                            self.logger.info(detail.ans)
+                        self.logger.info("")
 
 lang_dict = {
     "other": "other",
@@ -293,6 +294,9 @@ def main(
     show_accepted: bool = typer.Option(
         False, "-a", "--all", help="Show detail of all cases, even accepted."
     ),
+    brief: bool = typer.Option(
+        False, "-b", "--brief", help="Don't show stderr, Your answer and JOJ answer section."
+    ),
     json_format: bool = typer.Option(
         False, "-j", "--json", help="Print the result in json format to stdout."
     ),
@@ -310,7 +314,7 @@ def main(
         )
         assert sid and sid != "<EMPTY>", "Empty SID"
         worker = JOJSubmitter(sid)
-        worker.submit(problem_url, compressed_file_path, lang.value, no_wait, show_accepted, json_format)
+        worker.submit(problem_url, compressed_file_path, lang.value, no_wait, show_accepted, brief, json_format)
     except ValidationError as e:
         logging.error(f"Error: {e}")
         exit(1)
