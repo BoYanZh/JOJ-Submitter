@@ -42,8 +42,12 @@ class Language(str, Enum):
 
 class Detail:
     status: str
+    extra_info: str
     time_cost: str
     memory_cost: str
+    stderr: str
+    out: str
+    ans: str
 
     def __init__(self, **kwargs):
         for kw in kwargs:
@@ -93,41 +97,6 @@ class JOJSubmitter:
         )
         return response
 
-    # def get_status(self, url: str) -> Tuple[str, int, str, str, str, str]:
-    #     while True:
-    #         html = self.sess.get(url).text
-    #         soup = BeautifulSoup(html, features="html.parser")
-    #         status = (
-    #             soup.select_one(
-    #                 "#status > div.section__header > h1 > span:nth-child(2)"
-    #             )
-    #             .get_text()
-    #             .strip()
-    #         )
-    #         if status not in ["Waiting", "Compiling", "Fetched", "Running"]:
-    #             break
-    #         else:
-    #             time.sleep(1)
-    #     result_set = soup.find_all("td", class_="col--status typo")
-    #     accepted_count = 0
-    #     for result in result_set:
-    #         accepted_count += (
-    #             "Accepted" == result.find_all("span")[1].get_text().strip()
-    #         )
-    #     summaries = [
-    #         item.get_text() for item in soup.select_one("#summary").find_all("dd")
-    #     ]
-    #     summaries[1] = summaries[1].replace("ms", " ms")
-    #     compiler_text = soup.select_one(".compiler-text").get_text().strip()
-    #     return (
-    #         status,
-    #         accepted_count,
-    #         summaries[0],
-    #         summaries[1],
-    #         summaries[2],
-    #         compiler_text,
-    #     )
-
     def get_status(self, url: str) -> Record:
         while True:
             html = self.sess.get(url).text
@@ -143,23 +112,39 @@ class JOJSubmitter:
                 break
             else:
                 time.sleep(1)
-        details = []
-        accepted_count = 0
-        for detail_soup in soup.select_one("#status").find("div", class_="section__body no-padding").table.tbody.find_all("tr"):
-            detail_status = detail_soup.find("td", class_="col--status typo").find_all("span")[1].get_text().strip()
-            accepted_count += (
-                "Accepted" == detail_status
-            )
-            details.append(Detail(
-                status=detail_status,
-                time_cost=detail_soup.find("td", class_="col--time").get_text().strip().replace("ms", " ms"),
-                memory_cost=detail_soup.find("td", class_="col--memory").get_text().strip(),
-            ))
         summaries = [
             item.get_text() for item in soup.select_one("#summary").find_all("dd")
         ]
         summaries[1] = summaries[1].replace("ms", " ms")
         compiler_text = soup.select_one(".compiler-text").get_text().strip()
+        details = []
+        accepted_count = 0
+        for detail_tr in soup.select_one("#status").find("div", class_="section__body no-padding").table.tbody.find_all("tr"):
+            status_soup = detail_tr.find("td", class_="col--status typo")
+
+            detail = Detail()
+            status_soup_span = status_soup.find_all("span")
+            detail.status = status_soup_span[1].get_text().strip()
+            if len(status_soup_span) >= 3:
+                detail.extra_info = status_soup_span[2].get_text().strip()
+            detail.time_cost = detail_tr.find("td", class_="col--time").get_text().strip().replace("ms", " ms")
+            detail.memory_cost = detail_tr.find("td", class_="col--memory").get_text().strip()
+
+            accepted_count += (
+                "Accepted" == detail.status
+            )
+
+            detail_url = "https://joj.sjtu.edu.cn" + status_soup.find("a").get("href")
+            detail_html = self.sess.get(detail_url).text
+            detail_soup = BeautifulSoup(detail_html, features="html.parser")
+
+            compiler_text = detail_soup.find_all("pre", class_="compiler-text")
+            detail.stderr = compiler_text[0].get_text().strip()
+            detail.out = compiler_text[1].get_text().strip()
+            detail.ans = compiler_text[2].get_text().strip()
+
+            details.append(detail)
+
         return Record(
             status=status,
             accepted_count=accepted_count,
@@ -195,14 +180,35 @@ class JOJSubmitter:
         if res.status != "Accepted" or show_accepted:
             self.logger.info("Details:")
             for i, detail in enumerate(res.details):
-                if detail.status != "Accepted" or show_accepted:
-                    fore_color = Fore.RED if detail.status != "Accepted" else Fore.GREEN
+                status_string: str = ""
+
+                print_status: bool = False
+
+                if show_accepted and detail.status == "Accepted":
+                    status_string = f"#{i}: {Fore.GREEN}{detail.status}{Style.RESET_ALL}, "
+                    print_status = True
+                elif detail.status != "Accepted":
+                    status_string = f"#{i}: {Fore.RED}{detail.status}{Style.RESET_ALL} {detail.extra_info}, "
+                    print_status = True
+
+                if print_status:
                     self.logger.info(
-                        f"#{i}: {fore_color}{detail.status}{Style.RESET_ALL}, "
+                        status_string
                         + f"time: {Fore.BLUE}{detail.time_cost}{Style.RESET_ALL}, "
                         + f"memory: {Fore.BLUE}{detail.memory_cost}{Style.RESET_ALL}"
                     )
-
+                    self.logger.info("Stderr:")
+                    if detail.stderr:
+                        self.logger.info(detail.stderr)
+                    self.logger.info("")
+                    self.logger.info("Your Answer:")
+                    if detail.out:
+                        self.logger.info(detail.out)
+                    self.logger.info("")
+                    self.logger.info("JOJ Answer:")
+                    if detail.ans:
+                        self.logger.info(detail.ans)
+                    self.logger.info("")
 
 lang_dict = {
     "other": "other",
