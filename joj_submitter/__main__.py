@@ -169,18 +169,17 @@ class JOJSubmitter:
         show_all: bool,
         show_detail: bool,
         output_json: bool,
-    ) -> None:
+    ) -> bool:
         response = self.upload_file(problem_url, file_path, lang)
         assert (
             response.status_code == 200
         ), f"Upload error with code {response.status_code}"
         self.logger.info(f"{file_path} upload succeed, record url {response.url}")
         if no_wait:
-            return
+            return True
         res = self.get_status(response.url)
         if output_json:
             print(res.json())
-            return
         fore_color = Fore.RED if res.status != "Accepted" else Fore.GREEN
         self.logger.info(
             f"status: {fore_color}{res.status}{Style.RESET_ALL}, "
@@ -225,6 +224,7 @@ class JOJSubmitter:
                         if detail.ans:
                             self.logger.info(detail.ans)
                         self.logger.info("")
+        return res.status == "Accepted"
 
 
 lang_dict = {
@@ -306,7 +306,7 @@ def main(
         )
         assert sid and sid != "<EMPTY>", "Empty SID"
         worker = JOJSubmitter(sid)
-        worker.submit(
+        accepted = worker.submit(
             problem_url,
             compressed_file_path,
             lang.value,
@@ -315,12 +315,13 @@ def main(
             show_detail,
             output_json,
         )
+        raise typer.Exit(not accepted)
     except ValidationError as e:
         logging.error(f"Error: {e}")
-        exit(1)
+        raise typer.Exit(128)
     except AssertionError as e:
         logging.error(f"Error: {e.args[0]}")
-        exit(1)
+        raise typer.Exit(128)
 
 
 if __name__ == "__main__":
