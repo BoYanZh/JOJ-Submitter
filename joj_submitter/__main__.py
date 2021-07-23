@@ -10,7 +10,7 @@ from colorama import Fore, Style, init
 from pydantic import BaseModel, FilePath, HttpUrl, ValidationError
 from requests.models import Response
 
-__version__ = "0.0.3"
+__version__ = "0.0.4"
 
 app = typer.Typer(add_completion=False)
 
