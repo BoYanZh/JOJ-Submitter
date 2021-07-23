@@ -1,7 +1,7 @@
 import logging
 import time
 from enum import Enum
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, List
 
 import requests
 import typer
@@ -9,6 +9,8 @@ from bs4 import BeautifulSoup
 from colorama import Fore, Style, init
 from pydantic import BaseModel, FilePath, HttpUrl, ValidationError
 from requests.models import Response
+
+import json
 
 __version__ = "0.0.3"
 
@@ -53,6 +55,17 @@ class Detail:
         for kw in kwargs:
             setattr(self, kw, kwargs[kw])
 
+    def to_dict(self) -> Dict:
+        return {
+            "status": self.status,
+            "extra_info": self.extra_info,
+            "time": self.time_cost,
+            "memory": self.memory_cost,
+            "stderr": self.stderr,
+            "your_answer": self.out,
+            "joj_answer": self.ans,
+        }
+
 class Record:
     status: str
     accepted_count: int
@@ -65,6 +78,17 @@ class Record:
     def __init__(self, **kwargs):
         for kw in kwargs:
             setattr(self, kw, kwargs[kw])
+
+    def to_dict(self) -> Dict:
+        return {
+            "status": self.status,
+            "accepted_count": self.accepted_count,
+            "score": self.score,
+            "total_time": self.total_time,
+            "peak_memory": self.peak_memory,
+            "details": [ detail.to_dict() for detail in self.details ],
+            "compiler_text": self.compiler_text,
+        }
 
 
 class JOJSubmitter:
@@ -117,6 +141,7 @@ class JOJSubmitter:
         ]
         summaries[1] = summaries[1].replace("ms", " ms")
         compiler_text = soup.select_one(".compiler-text").get_text().strip()
+
         details = []
         accepted_count = 0
         for detail_tr in soup.select_one("#status").find("div", class_="section__body no-padding").table.tbody.find_all("tr"):
@@ -127,6 +152,8 @@ class JOJSubmitter:
             detail.status = status_soup_span[1].get_text().strip()
             if len(status_soup_span) >= 3:
                 detail.extra_info = status_soup_span[2].get_text().strip()
+            else:
+                detail.extra_info = ""
             detail.time_cost = detail_tr.find("td", class_="col--time").get_text().strip().replace("ms", " ms")
             detail.memory_cost = detail_tr.find("td", class_="col--memory").get_text().strip()
 
@@ -138,10 +165,10 @@ class JOJSubmitter:
             detail_html = self.sess.get(detail_url).text
             detail_soup = BeautifulSoup(detail_html, features="html.parser")
 
-            compiler_text = detail_soup.find_all("pre", class_="compiler-text")
-            detail.stderr = compiler_text[0].get_text().strip()
-            detail.out = compiler_text[1].get_text().strip()
-            detail.ans = compiler_text[2].get_text().strip()
+            detail_compiler_text = detail_soup.find_all("pre", class_="compiler-text")
+            detail.stderr = detail_compiler_text[0].get_text().strip()
+            detail.out = detail_compiler_text[1].get_text().strip()
+            detail.ans = detail_compiler_text[2].get_text().strip()
 
             details.append(detail)
 
@@ -156,7 +183,7 @@ class JOJSubmitter:
         )
 
     def submit(
-        self, problem_url: str, file_path: str, lang: str, no_wait: bool, show_accepted: bool,
+        self, problem_url: str, file_path: str, lang: str, no_wait: bool, show_accepted: bool, json_format: bool
     ) -> None:
         response = self.upload_file(problem_url, file_path, lang)
         assert (
@@ -166,6 +193,9 @@ class JOJSubmitter:
         if no_wait:
             return
         res = self.get_status(response.url)
+        if json_format:
+            print(json.dumps(res.to_dict()))
+            return
         fore_color = Fore.RED if res.status != "Accepted" else Fore.GREEN
         self.logger.info(
             f"status: {fore_color}{res.status}{Style.RESET_ALL}, "
@@ -263,6 +293,9 @@ def main(
     show_accepted: bool = typer.Option(
         False, "-a", "--all", help="Show detail of accepted cases."
     ),
+    json_format: bool = typer.Option(
+        False, "-j", "--json", help="Print the result in json format."
+    ),
     version: Optional[bool] = typer.Option(
         None, "--version", callback=version_callback, help="Show version."
     ),
@@ -277,7 +310,7 @@ def main(
         )
         assert sid and sid != "<EMPTY>", "Empty SID"
         worker = JOJSubmitter(sid)
-        worker.submit(problem_url, compressed_file_path, lang.value, no_wait, show_accepted)
+        worker.submit(problem_url, compressed_file_path, lang.value, no_wait, show_accepted, json_format)
     except ValidationError as e:
         logging.error(f"Error: {e}")
         exit(1)
