@@ -1,8 +1,7 @@
 import logging
-import sys
 import time
 from enum import Enum
-from typing import Dict, Optional, List
+from typing import Dict, List, Optional
 
 import requests
 import typer
@@ -41,6 +40,7 @@ class Language(str, Enum):
     rb = "rb"
     other = "other"
 
+
 class Detail(BaseModel):
     status: str
     extra_info: str
@@ -49,6 +49,7 @@ class Detail(BaseModel):
     stderr: str
     out: str
     ans: str
+
 
 class Record(BaseModel):
     status: str
@@ -113,30 +114,41 @@ class JOJSubmitter:
 
         details = []
         accepted_count = 0
-        for detail_tr in soup.select_one("#status").find("div", class_="section__body no-padding").table.tbody.find_all("tr"):
+        for detail_tr in (
+            soup.select_one("#status")
+            .find("div", class_="section__body no-padding")
+            .table.tbody.find_all("tr")
+        ):
 
             status_soup = detail_tr.find("td", class_="col--status typo")
             status_soup_span = status_soup.find_all("span")
             detail_status = status_soup_span[1].get_text().strip()
 
-            accepted_count += (
-                "Accepted" == detail_status
-            )
+            accepted_count += "Accepted" == detail_status
 
             detail_url = "https://joj.sjtu.edu.cn" + status_soup.find("a").get("href")
             detail_html = self.sess.get(detail_url).text
             detail_soup = BeautifulSoup(detail_html, features="html.parser")
             detail_compiler_text = detail_soup.find_all("pre", class_="compiler-text")
 
-            details.append(Detail(
-                status=detail_status,
-                extra_info=status_soup_span[2] if len(status_soup_span) >= 3 else "",
-                time_cost=detail_tr.find("td", class_="col--time").get_text().strip().replace("ms", " ms"),
-                memory_cost=detail_tr.find("td", class_="col--memory").get_text().strip(),
-                stderr=detail_compiler_text[0].get_text().strip(),
-                out=detail_compiler_text[1].get_text().strip(),
-                ans=detail_compiler_text[2].get_text().strip(),
-            ))
+            details.append(
+                Detail(
+                    status=detail_status,
+                    extra_info=status_soup_span[2]
+                    if len(status_soup_span) >= 3
+                    else "",
+                    time_cost=detail_tr.find("td", class_="col--time")
+                    .get_text()
+                    .strip()
+                    .replace("ms", " ms"),
+                    memory_cost=detail_tr.find("td", class_="col--memory")
+                    .get_text()
+                    .strip(),
+                    stderr=detail_compiler_text[0].get_text().strip(),
+                    out=detail_compiler_text[1].get_text().strip(),
+                    ans=detail_compiler_text[2].get_text().strip(),
+                )
+            )
 
         return Record(
             status=status,
@@ -149,7 +161,14 @@ class JOJSubmitter:
         )
 
     def submit(
-        self, problem_url: str, file_path: str, lang: str, no_wait: bool, show_all: bool, show_detail: bool, output_json: bool
+        self,
+        problem_url: str,
+        file_path: str,
+        lang: str,
+        no_wait: bool,
+        show_all: bool,
+        show_detail: bool,
+        output_json: bool,
     ) -> None:
         response = self.upload_file(problem_url, file_path, lang)
         assert (
@@ -179,7 +198,9 @@ class JOJSubmitter:
                 status_string: str = ""
                 print_status: bool = False
                 if show_all and detail.status == "Accepted":
-                    status_string = f"#{i}: {Fore.GREEN}{detail.status}{Style.RESET_ALL}, "
+                    status_string = (
+                        f"#{i}: {Fore.GREEN}{detail.status}{Style.RESET_ALL}, "
+                    )
                     print_status = True
                 elif detail.status != "Accepted":
                     status_string = f"#{i}: {Fore.RED}{detail.status}{Style.RESET_ALL} {detail.extra_info}, "
@@ -204,6 +225,7 @@ class JOJSubmitter:
                         if detail.ans:
                             self.logger.info(detail.ans)
                         self.logger.info("")
+
 
 lang_dict = {
     "other": "other",
@@ -284,7 +306,15 @@ def main(
         )
         assert sid and sid != "<EMPTY>", "Empty SID"
         worker = JOJSubmitter(sid)
-        worker.submit(problem_url, compressed_file_path, lang.value, no_wait, show_all, show_detail, output_json)
+        worker.submit(
+            problem_url,
+            compressed_file_path,
+            lang.value,
+            no_wait,
+            show_all,
+            show_detail,
+            output_json,
+        )
     except ValidationError as e:
         logging.error(f"Error: {e}")
         exit(1)
