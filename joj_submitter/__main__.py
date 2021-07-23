@@ -1,7 +1,7 @@
 import logging
 import time
 from enum import Enum
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple, List
 
 import requests
 import typer
@@ -40,6 +40,28 @@ class Language(str, Enum):
     rb = "rb"
     other = "other"
 
+class Detail:
+    status: str
+    time_cost: str
+    memory_cost: str
+
+    def __init__(self, **kwargs):
+        for kw in kwargs:
+            setattr(self, kw, kwargs[kw])
+
+class Record:
+    status: str
+    accepted_count: int
+    score: str
+    total_time: str
+    peak_memory: str
+    details: List[Detail]
+    compiler_text: str
+
+    def __init__(self, **kwargs):
+        for kw in kwargs:
+            setattr(self, kw, kwargs[kw])
+
 
 class JOJSubmitter:
     def __init__(self, sid: str, logger: logging.Logger = logging.getLogger()) -> None:
@@ -71,7 +93,42 @@ class JOJSubmitter:
         )
         return response
 
-    def get_status(self, url: str) -> Tuple[str, int, str, str, str, str]:
+    # def get_status(self, url: str) -> Tuple[str, int, str, str, str, str]:
+    #     while True:
+    #         html = self.sess.get(url).text
+    #         soup = BeautifulSoup(html, features="html.parser")
+    #         status = (
+    #             soup.select_one(
+    #                 "#status > div.section__header > h1 > span:nth-child(2)"
+    #             )
+    #             .get_text()
+    #             .strip()
+    #         )
+    #         if status not in ["Waiting", "Compiling", "Fetched", "Running"]:
+    #             break
+    #         else:
+    #             time.sleep(1)
+    #     result_set = soup.find_all("td", class_="col--status typo")
+    #     accepted_count = 0
+    #     for result in result_set:
+    #         accepted_count += (
+    #             "Accepted" == result.find_all("span")[1].get_text().strip()
+    #         )
+    #     summaries = [
+    #         item.get_text() for item in soup.select_one("#summary").find_all("dd")
+    #     ]
+    #     summaries[1] = summaries[1].replace("ms", " ms")
+    #     compiler_text = soup.select_one(".compiler-text").get_text().strip()
+    #     return (
+    #         status,
+    #         accepted_count,
+    #         summaries[0],
+    #         summaries[1],
+    #         summaries[2],
+    #         compiler_text,
+    #     )
+
+    def get_status(self, url: str) -> Record:
         while True:
             html = self.sess.get(url).text
             soup = BeautifulSoup(html, features="html.parser")
@@ -86,28 +143,35 @@ class JOJSubmitter:
                 break
             else:
                 time.sleep(1)
-        result_set = soup.find_all("td", class_="col--status typo")
+        details = []
         accepted_count = 0
-        for result in result_set:
+        for detail_soup in soup.select_one("#status").find("div", class_="section__body no-padding").table.tbody.find_all("tr"):
+            detail_status = detail_soup.find("td", class_="col--status typo").find_all("span")[1].get_text().strip()
             accepted_count += (
-                "Accepted" == result.find_all("span")[1].get_text().strip()
+                "Accepted" == detail_status
             )
+            details.append(Detail(
+                status=detail_status,
+                time_cost=detail_soup.find("td", class_="col--time").get_text().strip().replace("ms", " ms"),
+                memory_cost=detail_soup.find("td", class_="col--memory").get_text().strip(),
+            ))
         summaries = [
             item.get_text() for item in soup.select_one("#summary").find_all("dd")
         ]
         summaries[1] = summaries[1].replace("ms", " ms")
         compiler_text = soup.select_one(".compiler-text").get_text().strip()
-        return (
-            status,
-            accepted_count,
-            summaries[0],
-            summaries[1],
-            summaries[2],
-            compiler_text,
+        return Record(
+            status=status,
+            accepted_count=accepted_count,
+            score=summaries[0],
+            total_time=summaries[1],
+            peak_memory=summaries[2],
+            details=details,
+            compiler_text=compiler_text,
         )
 
     def submit(
-        self, problem_url: str, file_path: str, lang: str, no_wait: bool
+        self, problem_url: str, file_path: str, lang: str, no_wait: bool, show_accepted: bool,
     ) -> None:
         response = self.upload_file(problem_url, file_path, lang)
         assert (
@@ -117,17 +181,27 @@ class JOJSubmitter:
         if no_wait:
             return
         res = self.get_status(response.url)
-        fore_color = Fore.RED if res[0] != "Accepted" else Fore.GREEN
+        fore_color = Fore.RED if res.status != "Accepted" else Fore.GREEN
         self.logger.info(
-            f"status: {fore_color}{res[0]}{Style.RESET_ALL}, "
-            + f"accept number: {Fore.BLUE}{res[1]}{Style.RESET_ALL}, "
-            + f"score: {Fore.BLUE}{res[2]}{Style.RESET_ALL}, "
-            + f"total time: {Fore.BLUE}{res[3]}{Style.RESET_ALL}, "
-            + f"peak memory: {Fore.BLUE}{res[4]}{Style.RESET_ALL}"
+            f"status: {fore_color}{res.status}{Style.RESET_ALL}, "
+            + f"accept number: {Fore.BLUE}{res.accepted_count}{Style.RESET_ALL}, "
+            + f"score: {Fore.BLUE}{res.score}{Style.RESET_ALL}, "
+            + f"total time: {Fore.BLUE}{res.total_time}{Style.RESET_ALL}, "
+            + f"peak memory: {Fore.BLUE}{res.peak_memory}{Style.RESET_ALL}"
         )
-        if res[5]:
+        if res.compiler_text:
             self.logger.info("compiler text:")
-            self.logger.info(res[5])
+            self.logger.info(res.compiler_text)
+        if res.status != "Accepted" or show_accepted:
+            self.logger.info("Details:")
+            for i, detail in enumerate(res.details):
+                if detail.status != "Accepted" or show_accepted:
+                    fore_color = Fore.RED if detail.status != "Accepted" else Fore.GREEN
+                    self.logger.info(
+                        f"#{i}: {fore_color}{detail.status}{Style.RESET_ALL}, "
+                        + f"time: {Fore.BLUE}{detail.time_cost}{Style.RESET_ALL}, "
+                        + f"memory: {Fore.BLUE}{detail.memory_cost}{Style.RESET_ALL}"
+                    )
 
 
 lang_dict = {
@@ -180,6 +254,9 @@ def main(
     no_wait: bool = typer.Option(
         False, "-s", "--skip", help="Return immediately once uploaded."
     ),
+    show_accepted: bool = typer.Option(
+        False, "-a", "--all", help="Show detail of accepted cases."
+    ),
     version: Optional[bool] = typer.Option(
         None, "--version", callback=version_callback, help="Show version."
     ),
@@ -194,7 +271,7 @@ def main(
         )
         assert sid and sid != "<EMPTY>", "Empty SID"
         worker = JOJSubmitter(sid)
-        worker.submit(problem_url, compressed_file_path, lang.value, no_wait)
+        worker.submit(problem_url, compressed_file_path, lang.value, no_wait, show_accepted)
     except ValidationError as e:
         logging.error(f"Error: {e}")
         exit(1)
