@@ -70,8 +70,9 @@ class JOJSubmitter:
             cookies={"sid": sid, "JSESSIONID": "dummy", "save": "1"}
         )
         self.logger = logger
-        html = self.sess.get("https://joj.sjtu.edu.cn").text
-        assert "JAccount Login" not in html, "Unauthorized SID"
+        assert (
+            self.sess.get("https://joj.sjtu.edu.cn/login/jaccount").status_code == 200
+        ), "Unauthorized SID"
 
     def upload_file(self, problem_url: str, file_path: str, lang: str) -> Response:
         post_url = problem_url
