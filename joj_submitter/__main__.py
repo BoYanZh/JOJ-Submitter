@@ -11,9 +11,7 @@ from pydantic import BaseModel, FilePath, HttpUrl, ValidationError
 from requests.models import Response
 
 __version__ = "0.0.4"
-
 app = typer.Typer(add_completion=False)
-
 logging.basicConfig(format="%(message)s", datefmt="%m-%d %H:%M:%S", level=logging.INFO)
 
 
@@ -111,32 +109,30 @@ class JOJSubmitter:
         ]
         summaries[1] = summaries[1].replace("ms", " ms")
         compiler_text = soup.select_one(".compiler-text").get_text().strip()
-
         details = []
         accepted_count = 0
-        for detail_tr in (
-            soup.select_one("#status")
-            .find("div", class_="section__body no-padding")
-            .table.tbody.find_all("tr")
-        ):
-
+        body = soup.select_one("#status").find("div", class_="section__body no-padding")
+        table_rows = body.table.tbody.find_all("tr") if body else []
+        for detail_tr in table_rows:
             status_soup = detail_tr.find("td", class_="col--status typo")
             status_soup_span = status_soup.find_all("span")
             detail_status = status_soup_span[1].get_text().strip()
-
             accepted_count += "Accepted" == detail_status
-
             detail_url = "https://joj.sjtu.edu.cn" + status_soup.find("a").get("href")
             detail_html = self.sess.get(detail_url).text
             detail_soup = BeautifulSoup(detail_html, features="html.parser")
             detail_compiler_text = detail_soup.find_all("pre", class_="compiler-text")
-
+            extra_info = (
+                status_soup_span[2].get_text().strip()
+                if len(status_soup_span) >= 3
+                else ""
+            )
+            if extra_info:
+                extra_info = " " + extra_info
             details.append(
                 Detail(
                     status=detail_status,
-                    extra_info=status_soup_span[2]
-                    if len(status_soup_span) >= 3
-                    else "",
+                    extra_info=extra_info,
                     time_cost=detail_tr.find("td", class_="col--time")
                     .get_text()
                     .strip()
@@ -149,7 +145,6 @@ class JOJSubmitter:
                     ans=detail_compiler_text[2].get_text().strip(),
                 )
             )
-
         return Record(
             status=status,
             accepted_count=accepted_count,
@@ -167,6 +162,7 @@ class JOJSubmitter:
         lang: str,
         no_wait: bool,
         show_all: bool,
+        show_compiler_text: bool,
         show_detail: bool,
         output_json: bool,
     ) -> bool:
@@ -188,11 +184,11 @@ class JOJSubmitter:
             + f"total time: {Fore.BLUE}{res.total_time}{Style.RESET_ALL}, "
             + f"peak memory: {Fore.BLUE}{res.peak_memory}{Style.RESET_ALL}"
         )
-        if res.compiler_text:
+        if show_compiler_text and res.compiler_text:
             self.logger.info("compiler text:")
             self.logger.info(res.compiler_text)
-        if res.status != "Accepted" or show_all:
-            self.logger.info("Details:")
+        if (res.status != "Accepted" or show_all) and res.details:
+            self.logger.info("details:")
             for i, detail in enumerate(res.details):
                 status_string: str = ""
                 print_status: bool = False
@@ -202,16 +198,15 @@ class JOJSubmitter:
                     )
                     print_status = True
                 elif detail.status != "Accepted":
-                    status_string = f"#{i}: {Fore.RED}{detail.status}{Style.RESET_ALL} {detail.extra_info}, "
+                    status_string = f"#{i}: {Fore.RED}{detail.status}{Style.RESET_ALL}{detail.extra_info}, "
                     print_status = True
-
                 if print_status:
                     self.logger.info(
                         status_string
                         + f"time: {Fore.BLUE}{detail.time_cost}{Style.RESET_ALL}, "
                         + f"memory: {Fore.BLUE}{detail.memory_cost}{Style.RESET_ALL}"
                     )
-                    if show_detail == True:
+                    if show_detail:
                         self.logger.info("Stderr:")
                         if detail.stderr:
                             self.logger.info(detail.stderr)
@@ -259,6 +254,7 @@ class arguments(BaseModel):
     sid: str
     no_wait: bool
     show_all: bool
+    show_compiler_text: bool
     show_detail: bool
     output_json: bool
 
@@ -283,6 +279,9 @@ def main(
     show_all: bool = typer.Option(
         False, "-a", "--all", help="Show detail of all cases, even accepted."
     ),
+    show_compiler_text: bool = typer.Option(
+        False, "-c", "--compiler", help="Show compiler text section."
+    ),
     show_detail: bool = typer.Option(
         False, "-d", "--detail", help="Show stderr, Your answer and JOJ answer section."
     ),
@@ -301,6 +300,7 @@ def main(
             sid=sid,
             no_wait=no_wait,
             show_all=show_all,
+            show_compiler_text=show_compiler_text,
             show_detail=show_detail,
             output_json=output_json,
         )
@@ -312,6 +312,7 @@ def main(
             lang.value,
             no_wait,
             show_all,
+            show_compiler_text,
             show_detail,
             output_json,
         )
