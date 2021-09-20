@@ -10,7 +10,7 @@ from colorama import Fore, Style, init
 from pydantic import BaseModel, FilePath, HttpUrl, ValidationError
 from requests.models import Response
 
-__version__ = "0.0.4"
+__version__ = "0.0.5"
 app = typer.Typer(add_completion=False)
 logging.basicConfig(format="%(message)s", datefmt="%m-%d %H:%M:%S", level=logging.INFO)
 
