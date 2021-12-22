@@ -47,7 +47,7 @@ setup(
     description="Submit your work to JOJ via cli.",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
-    author="SJTU JI Tech",
+    author="BoYanZh",
     author_email="bomingzh@sjtu.edu.cn",
     maintainer="BoYanZh",
     maintainer_email="bomingzh@sjtu.edu.cn",
