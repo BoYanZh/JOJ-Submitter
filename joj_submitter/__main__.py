@@ -1,7 +1,7 @@
 import logging
 import time
 from enum import Enum
-from typing import Dict, List, Optional
+from typing import IO, AnyStr, Dict, List, Optional
 
 import requests
 import typer
@@ -10,7 +10,7 @@ from colorama import Fore, Style, init
 from pydantic import BaseModel, FilePath, HttpUrl, ValidationError
 from requests.models import Response
 
-__version__ = "0.0.6"
+__version__ = "0.0.7"
 app = typer.Typer(add_completion=False)
 logging.basicConfig(format="%(message)s", datefmt="%m-%d %H:%M:%S", level=logging.INFO)
 
@@ -74,7 +74,7 @@ class JOJSubmitter:
             self.sess.get("https://joj.sjtu.edu.cn/login/jaccount").status_code == 200
         ), "Unauthorized SID"
 
-    def upload_file(self, problem_url: str, file_path: str, lang: str) -> Response:
+    def upload_file(self, problem_url: str, file: IO[AnyStr], lang: str) -> Response:
         post_url = problem_url
         if not post_url.endswith("/submit"):
             post_url += "/submit"
@@ -85,7 +85,7 @@ class JOJSubmitter:
         csrf_token = csrf_token_node.get("value")
         response = self.sess.post(
             post_url,
-            files={"code": open(file_path, "rb")},
+            files={"code": file},
             data={"csrf_token": csrf_token, "lang": lang},
         )
         return response
@@ -167,7 +167,8 @@ class JOJSubmitter:
         show_detail: bool,
         output_json: bool,
     ) -> bool:
-        response = self.upload_file(problem_url, file_path, lang)
+        file = open(file_path, "rb")
+        response = self.upload_file(problem_url, file, lang)
         assert (
             response.status_code == 200
         ), f"Upload error with code {response.status_code}"
