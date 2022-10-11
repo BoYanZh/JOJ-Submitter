@@ -119,31 +119,42 @@ class JOJSubmitter:
             status_soup_span = status_soup.find_all("span")
             detail_status = status_soup_span[1].get_text().strip()
             accepted_count += "Accepted" == detail_status
-            detail_url = "https://joj.sjtu.edu.cn" + status_soup.find("a").get("href")
-            detail_html = self.sess.get(detail_url).text
-            detail_soup = BeautifulSoup(detail_html, features="html.parser")
-            detail_compiler_text = detail_soup.find_all("pre", class_="compiler-text")
-            extra_info = (
-                status_soup_span[2].get_text().strip()
-                if len(status_soup_span) >= 3
-                else ""
+            time_cost = (
+                detail_tr.find("td", class_="col--time")
+                .get_text()
+                .strip()
+                .replace("ms", " ms")
             )
-            if extra_info:
-                extra_info = " " + extra_info
+            memory_cost = detail_tr.find("td", class_="col--memory").get_text().strip()
+            stderr, out, ans = "", "", ""
+            if status_soup.find("a") is not None:  # results are not hidden
+                detail_url = "https://joj.sjtu.edu.cn" + status_soup.find("a").get(
+                    "href"
+                )
+                detail_html = self.sess.get(detail_url).text
+                detail_soup = BeautifulSoup(detail_html, features="html.parser")
+                detail_compiler_text = detail_soup.find_all(
+                    "pre", class_="compiler-text"
+                )
+                stderr = detail_compiler_text[0].get_text().strip()
+                out = detail_compiler_text[1].get_text().strip()
+                ans = detail_compiler_text[2].get_text().strip()
+                extra_info = (
+                    status_soup_span[2].get_text().strip()
+                    if len(status_soup_span) >= 3
+                    else ""
+                )
+                if extra_info:
+                    extra_info = " " + extra_info
             details.append(
                 Detail(
                     status=detail_status,
                     extra_info=extra_info,
-                    time_cost=detail_tr.find("td", class_="col--time")
-                    .get_text()
-                    .strip()
-                    .replace("ms", " ms"),
-                    memory_cost=detail_tr.find("td", class_="col--memory")
-                    .get_text()
-                    .strip(),
-                    stderr=detail_compiler_text[0].get_text().strip(),
-                    out=detail_compiler_text[1].get_text().strip(),
-                    ans=detail_compiler_text[2].get_text().strip(),
+                    time_cost=time_cost,
+                    memory_cost=memory_cost,
+                    stderr=stderr,
+                    out=out,
+                    ans=ans,
                 )
             )
         return Record(
