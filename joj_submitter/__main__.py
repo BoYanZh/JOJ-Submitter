@@ -196,11 +196,11 @@ class JOJSubmitter:
                 print_status: bool = False
                 if show_all and detail.status == "Accepted":
                     status_string = (
-                        f"#{i}: {Fore.GREEN}{detail.status}{Style.RESET_ALL}, "
+                        f"#{i + 1}: {Fore.GREEN}{detail.status}{Style.RESET_ALL}, "
                     )
                     print_status = True
                 elif detail.status != "Accepted":
-                    status_string = f"#{i}: {Fore.RED}{detail.status}{Style.RESET_ALL}{detail.extra_info}, "
+                    status_string = f"#{i + 1}: {Fore.RED}{detail.status}{Style.RESET_ALL}{detail.extra_info}, "
                     print_status = True
                 if print_status:
                     self.logger.info(
