@@ -57,7 +57,7 @@ Replace `<YOUR_JOJ_SID>` in the following methods with your actual SID.
 
 ```bash
 $ export JOJ_SID=<YOUR_JOJ_SID>
-$ joj-submit -w https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/homework/5fb1f1379fedcc0006622a06/5fb1ee8b9fedcc00066229d9 ans.zip cc
+$ joj-submit https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/homework/5fb1f1379fedcc0006622a06/5fb1ee8b9fedcc00066229d9 ans.zip cc
 ans.zip upload succeed, record url https://joj.sjtu.edu.cn/d/vg101_fall_2020_manuel/records/60e42b17597d580006c571d6
 status: Accepted, accept number: 49, score: 980, total time: 6167 ms, peak memory: 33.684 MiB
 ```
