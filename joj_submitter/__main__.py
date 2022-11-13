@@ -126,7 +126,7 @@ class JOJSubmitter:
                 .replace("ms", " ms")
             )
             memory_cost = detail_tr.find("td", class_="col--memory").get_text().strip()
-            stderr, out, ans = "", "", ""
+            stderr, out, ans, extra_info = "", "", "", ""
             if status_soup.find("a") is not None:  # results are not hidden
                 detail_url = "https://joj.sjtu.edu.cn" + status_soup.find("a").get(
                     "href"
